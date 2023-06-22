@@ -1,41 +1,82 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-	useExtensionApi,
 	render,
 	Banner,
-	useTranslate,
 	DatePicker,
 	useMetafield,
 	useApplyMetafieldsChange,
+	Text,
+     
 } from "@shopify/checkout-ui-extensions-react";
+import { Helper } from "./const/utils";
 
-// render("Checkout::Dynamic::Render", () => <App />);
 render("Checkout::ShippingMethods::RenderAfter", () => <App />);
 
 function App() {
-	const { extensionPoint } = useExtensionApi();
-	const translate = useTranslate();
+	const [isHidden, setHidden] = useState(false);
+	const [error, setError] = useState(null);
 	const deliveryDate = useMetafield({
 		namespace: "details",
 		key: "date",
 	});
 
 	const setDeliveryDate = useApplyMetafieldsChange();
+
+	const handleDateChange = (selectedDate) => {
+		const today = new Date().toISOString().split("T")[0];
+		if (selectedDate < today) {
+			setError("You cannot select a date before today.");
+		} else {
+			setError(null);
+			setDeliveryDate({
+				type: "updateMetafield",
+				namespace: "details",
+				key: "date",
+				valueType: "string",
+				value: selectedDate,
+			});
+		}
+	};
+
+	useEffect(() => {
+		const checkRenderExtension = async () => {
+			try {
+				const response = await Helper("delivery");
+				if (response?.delivery) {
+					const data = response?.delivery[0];
+					setHidden(data?.isDelivery);
+					console.log(isHidden, "hj");
+				}else{
+               setHidden(false)
+        }
+			} catch (error) {
+				console.log(error);
+				setHidden(false);
+			}
+		};
+
+		checkRenderExtension();
+		// setHidden(true)  
+	}, []);
+
+	console.log(isHidden, "ishidde");
 	return (
-		<Banner title="Choose Your Delivery Day">
-			{/* {translate('welcome', {extensionPoint})} */}
-			<DatePicker
-				selected={deliveryDate?.value}
-				onChange={(value) => {
-					setDeliveryDate({
-						type: "updateMetafield",
-						namespace: "details",
-						key: "date",
-						valueType: "string",
-						value,
-					});
-				}}
-			/>
-		</Banner>
+		<>
+			{isHidden === true ? (
+				<Banner
+					title="Choose Your Delivery Day"
+					status={error != null ? "critical" : "info"}>
+					<DatePicker
+						selected={deliveryDate?.value}
+						onChange={handleDateChange}
+					/>
+					{error != null && (
+						<Text appearance="critical">{error}</Text>
+					)}
+				</Banner>
+			) : (
+				<></>
+			)}
+		</>
 	);
 }
